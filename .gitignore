@@ -1,2 +1,6 @@
 /target
 /curl
+
+**/.DS_Store
+
+**/*.env*

@@ -29,15 +29,15 @@ use crate::{
     models::{
         AdminCreateUserParams, AdminUpdateUserParams, AdminUserListResponse, AuthClient,
         AuthServerHealth, AuthServerSettings, EmailSignUpConfirmation, EmailSignUpResult,
-        ExchangeCodeForSessionPayload, IdTokenCredentials, InviteParams,
-        LoginAnonymouslyOptions, LoginAnonymouslyPayload, LoginEmailOtpParams,
-        LoginWithEmailAndPasswordPayload, LoginWithEmailOtpPayload, LoginWithOAuthOptions,
-        LoginWithPhoneAndPasswordPayload, LoginWithSSO, LogoutScope, MfaChallengeResponse,
-        MfaEnrollParams, MfaEnrollResponse, MfaUnenrollResponse, MfaVerifyParams, OAuthResponse,
-        OTPResponse, Provider, RefreshSessionPayload, RequestMagicLinkPayload, ResendParams,
-        ResetPasswordForEmailPayload, ResetPasswordOptions, SendSMSOtpPayload, Session,
-        SignUpWithEmailAndPasswordPayload, SignUpWithPasswordOptions,
-        SignUpWithPhoneAndPasswordPayload, UpdatedUser, User, VerifyOtpParams, AUTH_V1,
+        ExchangeCodeForSessionPayload, IdTokenCredentials, InviteParams, LoginAnonymouslyOptions,
+        LoginAnonymouslyPayload, LoginEmailOtpParams, LoginWithEmailAndPasswordPayload,
+        LoginWithEmailOtpPayload, LoginWithOAuthOptions, LoginWithPhoneAndPasswordPayload,
+        LoginWithSSO, LogoutScope, MfaChallengeResponse, MfaEnrollParams, MfaEnrollResponse,
+        MfaUnenrollResponse, MfaVerifyParams, OAuthResponse, OTPResponse, Provider,
+        RefreshSessionPayload, RequestMagicLinkPayload, ResendParams, ResetPasswordForEmailPayload,
+        ResetPasswordOptions, SendSMSOtpPayload, Session, SignUpWithEmailAndPasswordPayload,
+        SignUpWithPasswordOptions, SignUpWithPhoneAndPasswordPayload, UpdatedUser, User,
+        VerifyOtpParams, AUTH_V1,
     },
 };
 
@@ -55,6 +55,26 @@ impl AuthClient {
     ) -> Self {
         AuthClient {
             client: Client::new(),
+            project_url: project_url.into(),
+            api_key: api_key.into(),
+            jwt_secret: jwt_secret.into(),
+        }
+    }
+
+    /// Create a new Auth Client
+    /// You can find your project url and keys at `https://supabase.com/dashboard/project/YOUR_PROJECT_ID/settings/api`
+    /// # Example
+    /// ```
+    /// let auth_client = AuthClient::new(project_url, api_key, jwt_secret).unwrap();
+    /// ```
+    pub fn new_with_client(
+        client: Client,
+        project_url: impl Into<String>,
+        api_key: impl Into<String>,
+        jwt_secret: impl Into<String>,
+    ) -> Self {
+        AuthClient {
+            client,
             project_url: project_url.into(),
             api_key: api_key.into(),
             jwt_secret: jwt_secret.into(),
@@ -752,7 +772,7 @@ impl AuthClient {
     /// let demo_email = env::var("DEMO_INVITE").unwrap();
     ///
     /// let user = auth_client
-    ///     .invite_user_by_email(&demo_email, None, auth_client.api_key())
+    ///     .invite_user_by_email(&demo_email, None)
     ///     .await
     ///     .unwrap();
     ///```
@@ -760,14 +780,13 @@ impl AuthClient {
         &self,
         email: &str,
         data: Option<Value>,
-        bearer_token: &str,
     ) -> Result<User, Error> {
         let mut headers = HeaderMap::new();
         headers.insert("apikey", HeaderValue::from_str(&self.api_key)?);
         headers.insert(CONTENT_TYPE, HeaderValue::from_str("application/json")?);
         headers.insert(
             AUTHORIZATION,
-            HeaderValue::from_str(&format!("Bearer {}", bearer_token))?,
+            HeaderValue::from_str(&format!("Bearer {}", self.api_key))?,
         );
 
         let invite_payload = InviteParams {
@@ -1563,7 +1582,7 @@ impl AuthClient {
     /// # Example
     /// ```
     /// let response = auth_client
-    ///     .admin_list_users(service_role_key, Some(1), Some(50))
+    ///     .admin_list_users(Some(1), Some(50))
     ///     .await
     ///     .unwrap();
     ///
@@ -1573,7 +1592,6 @@ impl AuthClient {
     /// ```
     pub async fn admin_list_users(
         &self,
-        bearer_token: &str,
         page: Option<u32>,
         per_page: Option<u32>,
     ) -> Result<AdminUserListResponse, Error> {
@@ -1581,7 +1599,7 @@ impl AuthClient {
         headers.insert("apikey", HeaderValue::from_str(&self.api_key)?);
         headers.insert(
             AUTHORIZATION,
-            HeaderValue::from_str(&format!("Bearer {}", bearer_token))?,
+            HeaderValue::from_str(&format!("Bearer {}", self.api_key))?,
         );
 
         let mut query_params: Vec<(String, String)> = Vec::new();
@@ -1594,10 +1612,7 @@ impl AuthClient {
 
         let response = self
             .client
-            .get(format!(
-                "{}{}/admin/users",
-                self.project_url, AUTH_V1
-            ))
+            .get(format!("{}{}/admin/users", self.project_url, AUTH_V1))
             .headers(headers)
             .query(&query_params)
             .send()
@@ -1630,20 +1645,19 @@ impl AuthClient {
     /// # Example
     /// ```
     /// let user = auth_client
-    ///     .admin_get_user_by_id(service_role_key, user_id)
+    ///     .admin_get_user_by_id(user_id)
     ///     .await
     ///     .unwrap();
     /// ```
     pub async fn admin_get_user_by_id(
         &self,
-        bearer_token: &str,
         user_id: &str,
     ) -> Result<User, Error> {
         let mut headers = HeaderMap::new();
         headers.insert("apikey", HeaderValue::from_str(&self.api_key)?);
         headers.insert(
             AUTHORIZATION,
-            HeaderValue::from_str(&format!("Bearer {}", bearer_token))?,
+            HeaderValue::from_str(&format!("Bearer {}", self.api_key))?,
         );
 
         let response = self
@@ -1687,7 +1701,6 @@ impl AuthClient {
     ///
     /// let user = auth_client
     ///     .admin_create_user(
-    ///         service_role_key,
     ///         AdminCreateUserParams {
     ///             email: Some("newuser@example.com".to_string()),
     ///             password: Some("secure-password".to_string()),
@@ -1700,7 +1713,6 @@ impl AuthClient {
     /// ```
     pub async fn admin_create_user(
         &self,
-        bearer_token: &str,
         params: AdminCreateUserParams,
     ) -> Result<User, Error> {
         let mut headers = HeaderMap::new();
@@ -1708,17 +1720,14 @@ impl AuthClient {
         headers.insert(CONTENT_TYPE, HeaderValue::from_str("application/json")?);
         headers.insert(
             AUTHORIZATION,
-            HeaderValue::from_str(&format!("Bearer {}", bearer_token))?,
+            HeaderValue::from_str(&format!("Bearer {}", self.api_key))?,
         );
 
         let body = serde_json::to_string(&params)?;
 
         let response = self
             .client
-            .post(format!(
-                "{}{}/admin/users",
-                self.project_url, AUTH_V1
-            ))
+            .post(format!("{}{}/admin/users", self.project_url, AUTH_V1))
             .headers(headers)
             .body(body)
             .send()
@@ -1755,7 +1764,6 @@ impl AuthClient {
     ///
     /// let user = auth_client
     ///     .admin_update_user_by_id(
-    ///         service_role_key,
     ///         user_id,
     ///         AdminUpdateUserParams {
     ///             email: Some("updated@example.com".to_string()),
@@ -1767,7 +1775,6 @@ impl AuthClient {
     /// ```
     pub async fn admin_update_user_by_id(
         &self,
-        bearer_token: &str,
         user_id: &str,
         params: AdminUpdateUserParams,
     ) -> Result<User, Error> {
@@ -1776,7 +1783,7 @@ impl AuthClient {
         headers.insert(CONTENT_TYPE, HeaderValue::from_str("application/json")?);
         headers.insert(
             AUTHORIZATION,
-            HeaderValue::from_str(&format!("Bearer {}", bearer_token))?,
+            HeaderValue::from_str(&format!("Bearer {}", self.api_key))?,
         );
 
         let body = serde_json::to_string(&params)?;
@@ -1819,20 +1826,16 @@ impl AuthClient {
     /// # Example
     /// ```
     /// auth_client
-    ///     .admin_delete_user(service_role_key, user_id)
+    ///     .admin_delete_user(user_id)
     ///     .await
     ///     .unwrap();
     /// ```
-    pub async fn admin_delete_user(
-        &self,
-        bearer_token: &str,
-        user_id: &str,
-    ) -> Result<(), Error> {
+    pub async fn admin_delete_user(&self, user_id: &str) -> Result<(), Error> {
         let mut headers = HeaderMap::new();
         headers.insert("apikey", HeaderValue::from_str(&self.api_key)?);
         headers.insert(
             AUTHORIZATION,
-            HeaderValue::from_str(&format!("Bearer {}", bearer_token))?,
+            HeaderValue::from_str(&format!("Bearer {}", self.api_key))?,
         );
 
         let response = self

@@ -151,3 +151,4 @@ let url = auth_client.sso(params).await.unwrap();
 pub mod client;
 pub mod error;
 pub mod models;
+pub use models::AuthClient;
